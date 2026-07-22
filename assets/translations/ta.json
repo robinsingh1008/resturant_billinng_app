@@ -1,0 +1,13 @@
+{
+  "common": {
+    "staff": "பணியாளர்",
+    "cash_book": "பணப் புத்தகம்",
+    "settings": "அமைப்புகள்"
+  },
+  "labour": {
+    "attendance": "வருகை"
+  },
+  "language": {
+    "choose_language": "மொழியை தேர்ந்தெடுக்கவும்"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "common": {
+    "staff": "ಸಿಬ್ಬಂದಿ",
+    "cash_book": "ಕ್ಯಾಶ್ ಬುಕ್",
+    "settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು"
+  },
+  "labour": {
+    "attendance": "ಹಾಜರಾತಿ"
+  },
+  "language": {
+    "choose_language": "ಭಾಷೆ ಆಯ್ಕೆಮಾಡಿ"
+  }
+}

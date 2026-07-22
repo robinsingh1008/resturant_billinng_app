@@ -1,0 +1,13 @@
+{
+  "common": {
+    "staff": "কর্মী",
+    "cash_book": "ক্যাশ বুক",
+    "settings": "সেটিংস"
+  },
+  "labour": {
+    "attendance": "হাজিরা"
+  },
+  "language": {
+    "choose_language": "ভাষা নির্বাচন করুন"
+  }
+}

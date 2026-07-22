@@ -45,6 +45,7 @@ dependencies:
   pin_code_fields: ^8.0.1
   easy_localization: ^3.0.8
   phone_number_hint: ^0.0.6
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
@@ -82,6 +83,8 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/icon/
+    - assets/translations/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

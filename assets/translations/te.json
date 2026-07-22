@@ -1,0 +1,13 @@
+{
+  "common": {
+    "staff": "సిబ్బంది",
+    "cash_book": "క్యాష్ బుక్",
+    "settings": "సెట్టింగ్స్"
+  },
+  "labour": {
+    "attendance": "హాజరు"
+  },
+  "language": {
+    "choose_language": "భాషను ఎంచుకోండి"
+  }
+}

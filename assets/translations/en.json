@@ -1,0 +1,13 @@
+{
+  "common": {
+    "staff": "Staff",
+    "cash_book": "Cash Book",
+    "settings": "Settings"
+  },
+  "labour": {
+    "attendance": "Attendance"
+  },
+  "language": {
+    "choose_language": "Choose language"
+  }
+}
