@@ -21,6 +21,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       (event, emit) => emit(state.copyWith(searchQuery: event.query)),
     );
     on<OrderItemIncremented>(_onItemIncremented);
+    on<OrderMenuItemAdded>(_onMenuItemAdded);
     on<OrderItemDecremented>(_onItemDecremented);
     on<OrderDiscountChanged>(_onDiscountChanged);
     on<OrderPaymentModeChanged>(
@@ -50,9 +51,24 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     OrderItemIncremented event,
     Emitter<OrdersState> emit,
   ) {
+    final existingIndex = state.lines.indexWhere(
+      (line) => line.item.id == event.id,
+    );
+    if (existingIndex != -1) {
+      _addItemToOrder(state.lines[existingIndex].item, emit);
+      return;
+    }
     final item = state.menuItems.firstWhere((entry) => entry.id == event.id);
+    _addItemToOrder(item, emit);
+  }
+
+  void _onMenuItemAdded(OrderMenuItemAdded event, Emitter<OrdersState> emit) {
+    _addItemToOrder(event.item, emit);
+  }
+
+  void _addItemToOrder(MenuItem item, Emitter<OrdersState> emit) {
     final lines = [...state.lines];
-    final index = lines.indexWhere((line) => line.item.id == event.id);
+    final index = lines.indexWhere((line) => line.item.id == item.id);
     if (index == -1) {
       lines.add(OrderLine(item: item, quantity: 1));
     } else {

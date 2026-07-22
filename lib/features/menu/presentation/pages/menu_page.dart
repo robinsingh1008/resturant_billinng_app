@@ -1,119 +1,667 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:resturent_billinng_app/app/app_theme.dart';
+import 'package:resturent_billinng_app/core/constants/app_colors.dart';
 import 'package:resturent_billinng_app/core/models/restaurant_models.dart';
-import 'package:resturent_billinng_app/features/menu/presentation/bloc/menu_bloc.dart';
+import 'package:resturent_billinng_app/features/orders/presentation/bloc/orders_bloc.dart';
+import 'package:resturent_billinng_app/features/orders/presentation/widgets/receipt_preview.dart';
 
-class MenuPage extends StatelessWidget {
-  const MenuPage({super.key});
+class MenuPage extends StatefulWidget {
+  const MenuPage({super.key, this.initialOrderType, this.initialTableNumber});
+
+  final OrderType? initialOrderType;
+  final String? initialTableNumber;
+
+  @override
+  State<MenuPage> createState() => _MenuPageState();
+}
+
+class _MenuPageState extends State<MenuPage> {
+  static const _categories = ['Breakfast', 'Grocery'];
+
+  String _selectedCategory = 'Breakfast';
+  bool _isSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialOrderType = widget.initialOrderType;
+    if (initialOrderType == null) return;
+
+    final ordersBloc = context.read<OrdersBloc>()
+      ..add(OrderTypeStarted(initialOrderType));
+    final tableNumber = widget.initialTableNumber;
+    if (tableNumber != null && tableNumber.trim().isNotEmpty) {
+      ordersBloc.add(OrderTableChanged(tableNumber));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF7),
-      appBar: AppBar(
-        title: const Text('Menu'),
-        backgroundColor: const Color(0xFFFFFBF7),
-        actions: [
-          IconButton.filled(
-            tooltip: 'Add item',
-            onPressed: () => _showMenuEditor(context),
-            icon: const Icon(Icons.add),
+    return BlocListener<OrdersBloc, OrdersState>(
+      listenWhen: (previous, current) =>
+          previous.submittedBill != current.submittedBill &&
+          current.submittedBill != null,
+      listener: (context, state) {
+        final bill = state.submittedBill;
+        if (bill != null) _showBillDialog(context, bill);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          leading: IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.arrow_back, size: 22),
           ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: BlocBuilder<MenuBloc, MenuState>(
-        builder: (context, state) {
-          if (state.items.isEmpty) {
-            return const Center(child: Text('Add your first menu item'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            itemCount: state.items.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final item = state.items[index];
-              return _MenuTile(
-                item: item,
-                onEdit: () => _showMenuEditor(context, item: item),
-                onDelete: () {
-                  context.read<MenuBloc>().add(MenuItemDeleted(item.id));
-                },
-              );
-            },
-          );
-        },
+          title: const Text(
+            'Main Menu',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          actions: [
+            BlocBuilder<OrdersBloc, OrdersState>(
+              buildWhen: (previous, current) =>
+                  previous.lines != current.lines ||
+                  previous.selectedOrderType != current.selectedOrderType ||
+                  previous.tableNumber != current.tableNumber,
+              builder: (context, state) {
+                return IconButton(
+                  tooltip: 'Cart & billing',
+                  onPressed: () => _showCartSheet(context, state),
+                  icon: Badge.count(
+                    count: state.lines.length,
+                    isLabelVisible: state.lines.isNotEmpty,
+                    child: const Icon(Icons.tune_rounded, size: 28),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              tooltip: 'Search item',
+              onPressed: () {
+                setState(() => _isSearching = !_isSearching);
+                if (_isSearching) return;
+                context.read<OrdersBloc>().add(const OrderSearchChanged(''));
+              },
+              icon: Icon(
+                _isSearching ? Icons.close_rounded : Icons.search_rounded,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
+        body: BlocBuilder<OrdersBloc, OrdersState>(
+          builder: (context, state) {
+            final menu = _filteredItems(state);
+            return Column(
+              children: [
+                if (_isSearching)
+                  _SearchBar(
+                    onChanged: (value) {
+                      context.read<OrdersBloc>().add(OrderSearchChanged(value));
+                    },
+                  ),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _MenuCategoryRail(
+                        categories: _categories,
+                        selectedCategory: _selectedCategory,
+                        onCategoryChanged: (category) {
+                          setState(() => _selectedCategory = category);
+                        },
+                        onAddCategory: _showAddCategoryMessage,
+                      ),
+                      Expanded(
+                        child: _MenuSection(items: menu, state: state),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  void _showMenuEditor(BuildContext context, {MenuItem? item}) {
+  List<MenuItem> _filteredItems(OrdersState state) {
+    final sampleItems = _sampleItemsFor(_selectedCategory);
+    final query = state.searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return sampleItems;
+    return sampleItems
+        .where((item) => item.name.toLowerCase().contains(query))
+        .toList(growable: false);
+  }
+
+  List<MenuItem> _sampleItemsFor(String category) {
+    if (category == 'Grocery') {
+      return const [
+        MenuItem(
+          id: 'menu_grocery_1',
+          name: 'Rice',
+          category: 'Grocery',
+          price: 80,
+          isVeg: true,
+        ),
+        MenuItem(
+          id: 'menu_grocery_2',
+          name: 'Atta',
+          category: 'Grocery',
+          price: 55,
+          isVeg: true,
+        ),
+      ];
+    }
+    return const [
+      MenuItem(
+        id: 'menu_breakfast_1',
+        name: 'Burger',
+        category: 'Breakfast',
+        price: 69,
+        isVeg: true,
+      ),
+      MenuItem(
+        id: 'menu_breakfast_2',
+        name: 'Kaju Katli',
+        category: 'Breakfast',
+        price: 900,
+        isVeg: true,
+      ),
+      MenuItem(
+        id: 'menu_breakfast_3',
+        name: 'Margherita Pizza',
+        category: 'Breakfast',
+        price: 220,
+        isVeg: true,
+      ),
+      MenuItem(
+        id: 'menu_breakfast_4',
+        name: 'Tea',
+        category: 'Breakfast',
+        price: 10,
+        isVeg: true,
+      ),
+    ];
+  }
+
+  void _showCartSheet(BuildContext context, OrdersState state) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => BlocProvider.value(
-        value: context.read<MenuBloc>(),
-        child: _MenuEditor(item: item),
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (_) {
+        return BlocBuilder<OrdersBloc, OrdersState>(
+          builder: (context, currentState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.84,
+              minChildSize: 0.45,
+              maxChildSize: 0.94,
+              builder: (context, scrollController) {
+                return SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: _CartSection(state: currentState),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddCategoryMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Category add option selected')),
+    );
+  }
+
+  void _showBillDialog(BuildContext context, Bill bill) {
+    final text = _billText(bill);
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Bill generated'),
+        content: SizedBox(
+          width: 360,
+          child: SingleChildScrollView(
+            child: ReceiptPreview(
+              lines: bill.lines,
+              orderType: bill.orderType,
+              paymentMode: bill.paymentMode,
+              subtotal: bill.subtotal,
+              gst: bill.gst,
+              discount: bill.discount,
+              total: bill.total,
+              billId: bill.id,
+              tableNumber: bill.tableNumber,
+              customerName: bill.customerName,
+              customerPhone: bill.customerPhone,
+              createdAt: bill.createdAt,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: text));
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Receipt copied')));
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('Copy'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.print),
+            label: const Text('Print'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _billText(Bill bill) {
+    final buffer = StringBuffer()
+      ..writeln('RESTAURANT BILLING')
+      ..writeln('${bill.orderType.label}  Bill #${bill.id.substring(0, 6)}');
+    if (bill.tableNumber != null) buffer.writeln('Table: ${bill.tableNumber}');
+    if (bill.customerPhone.isNotEmpty) {
+      buffer.writeln('Customer: ${bill.customerName} ${bill.customerPhone}');
+    }
+    buffer.writeln('--------------------------------');
+    for (final line in bill.lines) {
+      buffer.writeln(
+        '${line.item.name} x${line.quantity}  Rs ${line.total.toStringAsFixed(0)}',
+      );
+    }
+    buffer
+      ..writeln('--------------------------------')
+      ..writeln('Subtotal: Rs ${bill.subtotal.toStringAsFixed(0)}')
+      ..writeln('GST 5%: Rs ${bill.gst.toStringAsFixed(0)}')
+      ..writeln('Discount: Rs ${bill.discount.toStringAsFixed(0)}')
+      ..writeln('Grand Total: Rs ${bill.total.toStringAsFixed(0)}')
+      ..writeln('Paid by: ${bill.paymentMode.label}');
+    return buffer.toString();
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({required this.onChanged});
+
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFEDEDED))),
+      ),
+      child: TextField(
+        autofocus: true,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        decoration: const InputDecoration(
+          hintText: 'Search item',
+          prefixIcon: Icon(Icons.search_rounded),
+        ),
+        onChanged: onChanged,
       ),
     );
   }
 }
 
-class _MenuTile extends StatelessWidget {
-  const _MenuTile({
-    required this.item,
-    required this.onEdit,
-    required this.onDelete,
+class _MenuCategoryRail extends StatelessWidget {
+  const _MenuCategoryRail({
+    required this.categories,
+    required this.selectedCategory,
+    required this.onCategoryChanged,
+    required this.onAddCategory,
   });
 
-  final MenuItem item;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final List<String> categories;
+  final String selectedCategory;
+  final ValueChanged<String> onCategoryChanged;
+  final VoidCallback onAddCategory;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        leading: Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            border: Border.all(color: item.isVeg ? Colors.green : Colors.red),
+    return Container(
+      width: 100,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Color(0xFFEDEDED))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final category in categories)
+            _CategoryTile(
+              title: category,
+              isSelected: selectedCategory == category,
+              onTap: () => onCategoryChanged(category),
+            ),
+          _AddCategoryTile(onTap: onAddCategory),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({
+    required this.title,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 80,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.white,
+          border: const Border(bottom: BorderSide(color: Color(0xFFEDEDED))),
+        ),
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
           ),
-          child: Center(
-            child: Icon(
-              Icons.circle,
-              size: 8,
-              color: item.isVeg ? Colors.green : Colors.red,
+        ),
+      ),
+    );
+  }
+}
+
+class _AddCategoryTile extends StatelessWidget {
+  const _AddCategoryTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 90,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(bottom: BorderSide(color: Color(0xFFEDEDED))),
+        ),
+        child: const Text(
+          '+ Add\nCategory',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color.fromARGB(255, 55, 55, 55),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            height: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuSection extends StatelessWidget {
+  const _MenuSection({required this.items, required this.state});
+
+  final List<MenuItem> items;
+  final OrdersState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const _EmptyMenu();
+
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(18, 34, 18, 18),
+      itemCount: items.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 28,
+        crossAxisSpacing: 18,
+        mainAxisExtent: 180,
+      ),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return _MenuCard(item: item, quantity: state.quantityFor(item.id));
+      },
+    );
+  }
+}
+
+class _MenuCard extends StatelessWidget {
+  const _MenuCard({required this.item, required this.quantity});
+
+  final MenuItem item;
+  final int quantity;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        context.read<OrdersBloc>().add(OrderMenuItemAdded(item));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${item.name} added')));
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: 2,
+            left: 8,
+            child: Row(
+              children: [
+                _VegMarker(isVeg: item.isVeg),
+                SizedBox(width: 5),
+                Text(
+                  '₹${item.price.toStringAsFixed(1)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF3C3D4C),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
+
+          Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              width: 100,
+              height: 90,
+              margin: const EdgeInsets.only(top: 40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFE0E0E0), width: 10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.image_rounded,
+                color: Color(0xFFE0E0E0),
+                size: 62,
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: 55,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  quantity == 0 ? item.name : '${item.name}  x$quantity',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VegMarker extends StatelessWidget {
+  const _VegMarker({required this.isVeg});
+
+  final bool isVeg;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isVeg ? const Color(0xFF28A745) : const Color(0xFFD65C5C);
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: color, width: 2),
+      ),
+      child: Center(
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        title: Text(
-          item.name,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: Text(item.category),
-        trailing: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
+      ),
+    );
+  }
+}
+
+class _CartSection extends StatelessWidget {
+  const _CartSection({required this.state});
+
+  final OrdersState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Rs ${item.price.toStringAsFixed(0)}',
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              'Cart & Billing',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
             ),
-            IconButton(
-              tooltip: 'Edit',
-              onPressed: onEdit,
-              icon: const Icon(Icons.edit_outlined),
+            const SizedBox(height: 12),
+            SegmentedButton<OrderType>(
+              segments: OrderType.values
+                  .map(
+                    (type) => ButtonSegment(
+                      value: type,
+                      label: Text(
+                        type.label,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              selected: {state.selectedOrderType},
+              onSelectionChanged: (selection) {
+                context.read<OrdersBloc>().add(
+                  OrderTypeStarted(selection.first),
+                );
+              },
             ),
-            IconButton(
-              tooltip: 'Delete',
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline),
+            const SizedBox(height: 12),
+            _CustomerFields(state: state),
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 190,
+              child: state.lines.isEmpty
+                  ? const _EmptyCart()
+                  : ListView.separated(
+                      itemCount: state.lines.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
+                      itemBuilder: (context, index) =>
+                          _CartLineTile(line: state.lines[index]),
+                    ),
             ),
+            const SizedBox(height: 14),
+            _BillBreakdown(state: state),
+            const SizedBox(height: 14),
+            SegmentedButton<PaymentMode>(
+              segments: PaymentMode.values
+                  .map(
+                    (mode) => ButtonSegment(
+                      value: mode,
+                      label: Text(
+                        mode.label,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              selected: {state.paymentMode},
+              onSelectionChanged: (selection) {
+                context.read<OrdersBloc>().add(
+                  OrderPaymentModeChanged(selection.first),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            ReceiptPreview(
+              lines: state.lines,
+              orderType: state.selectedOrderType,
+              paymentMode: state.paymentMode,
+              subtotal: state.subtotal,
+              gst: state.gst,
+              discount: state.discount,
+              total: state.total,
+              tableNumber: state.tableNumber,
+              customerName: state.customerName,
+              customerPhone: state.customerPhone,
+            ),
+            const SizedBox(height: 14),
+            _ActionButtons(state: state),
           ],
         ),
       ),
@@ -121,120 +669,290 @@ class _MenuTile extends StatelessWidget {
   }
 }
 
-class _MenuEditor extends StatefulWidget {
-  const _MenuEditor({this.item});
+class _CustomerFields extends StatelessWidget {
+  const _CustomerFields({required this.state});
 
-  final MenuItem? item;
+  final OrdersState state;
 
   @override
-  State<_MenuEditor> createState() => _MenuEditorState();
+  Widget build(BuildContext context) {
+    if (state.selectedOrderType == OrderType.dineIn) {
+      return TextField(
+        style: const TextStyle(fontSize: 16),
+        decoration: const InputDecoration(
+          prefixIcon: Icon(Icons.table_restaurant),
+          labelText: 'Table number',
+        ),
+        onChanged: (value) {
+          context.read<OrdersBloc>().add(OrderTableChanged(value));
+        },
+      );
+    }
+
+    if (state.selectedOrderType == OrderType.delivery) {
+      return Row(
+        children: [
+          Expanded(
+            child: TextField(
+              style: const TextStyle(fontSize: 16),
+              decoration: const InputDecoration(labelText: 'Customer name'),
+              onChanged: (value) {
+                context.read<OrdersBloc>().add(
+                  OrderCustomerChanged(
+                    customerName: value,
+                    customerPhone: state.customerPhone,
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              style: const TextStyle(fontSize: 16),
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Phone'),
+              onChanged: (value) {
+                context.read<OrdersBloc>().add(
+                  OrderCustomerChanged(
+                    customerName: state.customerName,
+                    customerPhone: value,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
 }
 
-class _MenuEditorState extends State<_MenuEditor> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _categoryController;
-  late final TextEditingController _priceController;
-  late bool _isVeg;
+class _CartLineTile extends StatelessWidget {
+  const _CartLineTile({required this.line});
 
-  @override
-  void initState() {
-    super.initState();
-    final item = widget.item;
-    _nameController = TextEditingController(text: item?.name ?? '');
-    _categoryController = TextEditingController(text: item?.category ?? '');
-    _priceController = TextEditingController(
-      text: item == null ? '' : item.price.toStringAsFixed(0),
-    );
-    _isVeg = item?.isVeg ?? true;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _categoryController.dispose();
-    _priceController.dispose();
-    super.dispose();
-  }
+  final OrderLine line;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        left: 18,
-        right: 18,
-        top: 18,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 18,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
         children: [
-          Text(
-            widget.item == null ? 'Add menu item' : 'Edit menu item',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Item name'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _categoryController,
-            decoration: const InputDecoration(labelText: 'Category'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _priceController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Price'),
-          ),
-          const SizedBox(height: 12),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: true, label: Text('Veg')),
-              ButtonSegment(value: false, label: Text('Non-veg')),
-            ],
-            selected: {_isVeg},
-            onSelectionChanged: (selection) {
-              setState(() => _isVeg = selection.first);
-            },
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check),
-              label: const Text('Save item'),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  line.item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Rs ${line.item.price.toStringAsFixed(0)} each',
+                  style: const TextStyle(
+                    color: AppTheme.mutedText,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
             ),
+          ),
+          IconButton.filledTonal(
+            tooltip: 'Decrease',
+            onPressed: () {
+              context.read<OrdersBloc>().add(
+                OrderItemDecremented(line.item.id),
+              );
+            },
+            icon: const Icon(Icons.remove),
+          ),
+          SizedBox(
+            width: 34,
+            child: Text(
+              line.quantity.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            ),
+          ),
+          IconButton.filled(
+            tooltip: 'Increase',
+            onPressed: () {
+              context.read<OrdersBloc>().add(
+                OrderItemIncremented(line.item.id),
+              );
+            },
+            icon: const Icon(Icons.add),
           ),
         ],
       ),
     );
   }
+}
 
-  void _save() {
-    final name = _nameController.text.trim();
-    final category = _categoryController.text.trim();
-    final price = double.tryParse(_priceController.text.trim());
-    if (name.isEmpty || category.isEmpty || price == null || price <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter item name, category and price')),
-      );
-      return;
-    }
-    final item = MenuItem(
-      id: widget.item?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: name,
-      category: category,
-      price: price,
-      isVeg: _isVeg,
+class _BillBreakdown extends StatelessWidget {
+  const _BillBreakdown({required this.state});
+
+  final OrdersState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _AmountRow(label: 'Subtotal', value: state.subtotal),
+        _AmountRow(label: 'Tax / GST (5%)', value: state.gst),
+        const SizedBox(height: 8),
+        TextField(
+          style: const TextStyle(fontSize: 16),
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Discount',
+            prefixText: 'Rs ',
+          ),
+          onChanged: (value) {
+            context.read<OrdersBloc>().add(OrderDiscountChanged(value));
+          },
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: _AmountRow(
+            label: 'Grand Total',
+            value: state.total,
+            isTotal: true,
+          ),
+        ),
+      ],
     );
-    context.read<MenuBloc>().add(MenuItemSaved(item));
-    Navigator.of(context).pop();
+  }
+}
+
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+  });
+
+  final String label;
+  final double value;
+  final bool isTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      color: isTotal ? AppTheme.primary : AppTheme.text,
+      fontSize: isTotal ? 20 : 16,
+      fontWeight: isTotal ? FontWeight.w900 : FontWeight.w700,
+    );
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: style)),
+        Text('Rs ${value.toStringAsFixed(0)}', style: style),
+      ],
+    );
+  }
+}
+
+class _ActionButtons extends StatelessWidget {
+  const _ActionButtons({required this.state});
+
+  final OrdersState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: state.lines.isEmpty
+                    ? null
+                    : () {
+                        context.read<OrdersBloc>().add(const OrderCleared());
+                      },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Clear Cart', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: state.lines.isEmpty
+                    ? null
+                    : () {
+                        context.read<OrdersBloc>().add(const OrderCleared());
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Order moved to hold')),
+                        );
+                      },
+                icon: const Icon(Icons.pause_circle_outline),
+                label: const Text('Hold Order', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: FilledButton.icon(
+            onPressed: state.lines.isEmpty
+                ? null
+                : () {
+                    context.read<OrdersBloc>().add(const OrderSubmitted());
+                  },
+            icon: const Icon(Icons.print),
+            label: const Text(
+              'Generate Bill / Print',
+              style: TextStyle(fontSize: 16),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyMenu extends StatelessWidget {
+  const _EmptyMenu();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text(
+        'No menu items in this category',
+        style: TextStyle(fontSize: 16),
+      ),
+    );
+  }
+}
+
+class _EmptyCart extends StatelessWidget {
+  const _EmptyCart();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        'Cart is empty',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: AppTheme.mutedText,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }

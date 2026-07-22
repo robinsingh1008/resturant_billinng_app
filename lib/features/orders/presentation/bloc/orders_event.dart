@@ -38,6 +38,15 @@ final class OrderItemIncremented extends OrdersEvent {
   List<Object?> get props => [id];
 }
 
+final class OrderMenuItemAdded extends OrdersEvent {
+  const OrderMenuItemAdded(this.item);
+
+  final MenuItem item;
+
+  @override
+  List<Object?> get props => [item];
+}
+
 final class OrderItemDecremented extends OrdersEvent {
   const OrderItemDecremented(this.id);
 
