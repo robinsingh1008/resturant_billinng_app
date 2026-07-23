@@ -29,6 +29,16 @@ final class OrderSearchChanged extends OrdersEvent {
   List<Object?> get props => [query];
 }
 
+final class OrdersDateFilterChanged extends OrdersEvent {
+  const OrdersDateFilterChanged({required this.filter, this.date});
+
+  final OrdersDateFilter filter;
+  final DateTime? date;
+
+  @override
+  List<Object?> get props => [filter, date];
+}
+
 final class OrderItemIncremented extends OrdersEvent {
   const OrderItemIncremented(this.id);
 

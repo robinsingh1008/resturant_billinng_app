@@ -12,7 +12,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     : super(
         OrdersState(
           menuItems: _menuRepository.getItems(),
-          bills: _orderRepository.getBills(),
+          bills: _orderRepository.getBillsForDay(DateTime.now()),
         ),
       ) {
     on<OrdersStarted>((event, emit) => _refresh(emit));
@@ -20,6 +20,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     on<OrderSearchChanged>(
       (event, emit) => emit(state.copyWith(searchQuery: event.query)),
     );
+    on<OrdersDateFilterChanged>(_onDateFilterChanged);
     on<OrderItemIncremented>(_onItemIncremented);
     on<OrderMenuItemAdded>(_onMenuItemAdded);
     on<OrderItemDecremented>(_onItemDecremented);
@@ -129,11 +130,25 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     emit(_emptyState().copyWith(submittedBill: bill));
   }
 
+  void _onDateFilterChanged(
+    OrdersDateFilterChanged event,
+    Emitter<OrdersState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        dateFilter: event.filter,
+        selectedDate: event.date,
+        clearSelectedDate: event.filter != OrdersDateFilter.date,
+        bills: _billsForFilter(event.filter, event.date),
+      ),
+    );
+  }
+
   void _refresh(Emitter<OrdersState> emit) {
     emit(
       state.copyWith(
         menuItems: _menuRepository.getItems(),
-        bills: _orderRepository.getBills(),
+        bills: _billsForFilter(state.dateFilter, state.selectedDate),
       ),
     );
   }
@@ -141,8 +156,23 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   OrdersState _emptyState() {
     return OrdersState(
       menuItems: _menuRepository.getItems(),
-      bills: _orderRepository.getBills(),
+      bills: _billsForFilter(state.dateFilter, state.selectedDate),
       selectedOrderType: state.selectedOrderType,
+      dateFilter: state.dateFilter,
+      selectedDate: state.selectedDate,
     );
+  }
+
+  List<Bill> _billsForFilter(OrdersDateFilter filter, DateTime? selectedDate) {
+    final now = DateTime.now();
+    return switch (filter) {
+      OrdersDateFilter.today => _orderRepository.getBillsForDay(now),
+      OrdersDateFilter.yesterday => _orderRepository.getBillsForDay(
+        now.subtract(const Duration(days: 1)),
+      ),
+      OrdersDateFilter.date when selectedDate != null =>
+        _orderRepository.getBillsForDay(selectedDate),
+      OrdersDateFilter.date => _orderRepository.getBillsForDay(now),
+    };
   }
 }

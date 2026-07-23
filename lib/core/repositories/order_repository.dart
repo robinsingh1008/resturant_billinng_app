@@ -10,11 +10,12 @@ class OrderRepository {
   }
 
   List<Bill> getBillsForDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = DateTime(day.year, day.month, day.day, 23, 59, 59, 999, 999);
     return getBills()
         .where((bill) {
-          return bill.createdAt.year == day.year &&
-              bill.createdAt.month == day.month &&
-              bill.createdAt.day == day.day;
+          return !bill.createdAt.isBefore(start) &&
+              !bill.createdAt.isAfter(end);
         })
         .toList(growable: false);
   }

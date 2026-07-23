@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 enum OrderType { dineIn, parcel, delivery }
 
-enum PaymentMode { cash, upi, card }
+enum PaymentMode { cash, card, upi, split }
 
 extension OrderTypeLabel on OrderType {
   String get label {
@@ -18,8 +18,9 @@ extension PaymentModeLabel on PaymentMode {
   String get label {
     return switch (this) {
       PaymentMode.cash => 'Cash',
-      PaymentMode.upi => 'UPI',
       PaymentMode.card => 'Card',
+      PaymentMode.upi => 'UPI',
+      PaymentMode.split => 'Split',
     };
   }
 }

@@ -13,8 +13,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final OrderRepository _orderRepository;
 
   void _emitSummary(Emitter<HomeState> emit) {
-    final bills = _orderRepository.getBillsForDay(DateTime.now());
+    final now = DateTime.now();
+    final bills = _orderRepository.getBillsForDay(now);
     final total = bills.fold<double>(0, (sum, bill) => sum + bill.total);
-    emit(HomeState(todaySalesTotal: total, todayOrderCount: bills.length));
+    emit(
+      HomeState(
+        todaySalesTotal: total,
+        todayOrderCount: bills.length,
+        lastUpdatedAt: now,
+      ),
+    );
   }
 }

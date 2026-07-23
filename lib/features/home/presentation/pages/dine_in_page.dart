@@ -4,7 +4,6 @@ import 'package:resturent_billinng_app/app/app_theme.dart';
 import 'package:resturent_billinng_app/core/models/restaurant_models.dart';
 import 'package:resturent_billinng_app/features/menu/presentation/pages/menu_page.dart';
 import 'package:resturent_billinng_app/features/orders/presentation/bloc/orders_bloc.dart';
-import 'package:resturent_billinng_app/features/orders/presentation/pages/orders_page.dart';
 
 class DineInPage extends StatefulWidget {
   const DineInPage({super.key});

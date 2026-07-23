@@ -361,11 +361,11 @@ class _SummaryCard extends StatelessWidget {
                 ),
               ),
               const _SummaryDivider(),
-              const Expanded(
+              Expanded(
                 child: _SummaryMetric(
                   label: 'Orders',
-                  value: '0',
-                  color: Color(0xFF9C55E8),
+                  value: state.todayOrderCount.toString(),
+                  color: const Color(0xFF9C55E8),
                   icon: Icons.shopping_bag_outlined,
                 ),
               ),
@@ -381,7 +381,7 @@ class _SummaryCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Last updated: Just now',
+                'Last updated: ${_lastUpdatedLabel(state.lastUpdatedAt)}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: const Color(0xFF8D8580),
                   fontWeight: FontWeight.w600,
@@ -406,6 +406,14 @@ class _SummaryCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _lastUpdatedLabel(DateTime? dateTime) {
+    if (dateTime == null) return '--';
+    final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 }
 

@@ -2,6 +2,8 @@ part of 'orders_bloc.dart';
 
 enum OrdersTab { newOrder, history }
 
+enum OrdersDateFilter { today, yesterday, date }
+
 final class OrdersState extends Equatable {
   const OrdersState({
     this.menuItems = const [],
@@ -16,6 +18,8 @@ final class OrdersState extends Equatable {
     this.discount = 0,
     this.submittedBill,
     this.selectedTab = OrdersTab.history,
+    this.dateFilter = OrdersDateFilter.today,
+    this.selectedDate,
   });
 
   final List<MenuItem> menuItems;
@@ -30,6 +34,8 @@ final class OrdersState extends Equatable {
   final double discount;
   final Bill? submittedBill;
   final OrdersTab selectedTab;
+  final OrdersDateFilter dateFilter;
+  final DateTime? selectedDate;
 
   List<MenuItem> get filteredItems {
     final query = searchQuery.trim().toLowerCase();
@@ -63,6 +69,9 @@ final class OrdersState extends Equatable {
     Bill? submittedBill,
     bool clearSubmittedBill = false,
     OrdersTab? selectedTab,
+    OrdersDateFilter? dateFilter,
+    DateTime? selectedDate,
+    bool clearSelectedDate = false,
   }) {
     return OrdersState(
       menuItems: menuItems ?? this.menuItems,
@@ -79,6 +88,10 @@ final class OrdersState extends Equatable {
           ? null
           : submittedBill ?? this.submittedBill,
       selectedTab: selectedTab ?? this.selectedTab,
+      dateFilter: dateFilter ?? this.dateFilter,
+      selectedDate: clearSelectedDate
+          ? null
+          : selectedDate ?? this.selectedDate,
     );
   }
 
@@ -96,5 +109,7 @@ final class OrdersState extends Equatable {
     discount,
     submittedBill,
     selectedTab,
+    dateFilter,
+    selectedDate,
   ];
 }

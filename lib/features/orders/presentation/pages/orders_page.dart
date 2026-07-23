@@ -105,33 +105,96 @@ class _HistoryDateFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _DateFilterChip(
-            label: 'Today',
-            selected: true,
-            textStyle: theme.textTheme.labelLarge,
+    return BlocBuilder<OrdersBloc, OrdersState>(
+      buildWhen: (previous, current) {
+        return previous.dateFilter != current.dateFilter ||
+            previous.selectedDate != current.selectedDate;
+      },
+      builder: (context, state) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _DateFilterChip(
+                label: 'Today',
+                selected: state.dateFilter == OrdersDateFilter.today,
+                textStyle: theme.textTheme.labelLarge,
+                onTap: () => context.read<OrdersBloc>().add(
+                  const OrdersDateFilterChanged(filter: OrdersDateFilter.today),
+                ),
+              ),
+              const SizedBox(width: 14),
+              _DateFilterChip(
+                label: 'Yesterday',
+                selected: state.dateFilter == OrdersDateFilter.yesterday,
+                textStyle: theme.textTheme.labelLarge,
+                onTap: () => context.read<OrdersBloc>().add(
+                  const OrdersDateFilterChanged(
+                    filter: OrdersDateFilter.yesterday,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              SizedBox(
+                width: 190,
+                child: _DateFilterChip(
+                  label: _dateLabel(state),
+                  selected: state.dateFilter == OrdersDateFilter.date,
+                  icon: Icons.calendar_month_rounded,
+                  trailingIcon: Icons.keyboard_arrow_down_rounded,
+                  textStyle: theme.textTheme.labelLarge,
+                  onTap: () => _selectDate(context, state),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          _DateFilterChip(
-            label: 'Yesterday',
-            textStyle: theme.textTheme.labelLarge,
-          ),
-          const SizedBox(width: 14),
-          SizedBox(
-            width: 246,
-            child: _DateFilterChip(
-              label: 'Select date range',
-              icon: Icons.calendar_month_rounded,
-              trailingIcon: Icons.keyboard_arrow_down_rounded,
-              textStyle: theme.textTheme.labelLarge,
-            ),
-          ),
-        ],
+        );
+      },
+    );
+  }
+
+  Future<void> _selectDate(BuildContext context, OrdersState state) async {
+    final now = DateTime.now();
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: state.selectedDate ?? now,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 10),
+      helpText: 'Select date',
+    );
+    if (selectedDate == null || !context.mounted) return;
+    context.read<OrdersBloc>().add(
+      OrdersDateFilterChanged(
+        filter: OrdersDateFilter.date,
+        date: selectedDate,
       ),
     );
+  }
+
+  String _dateLabel(OrdersState state) {
+    final selectedDate = state.selectedDate;
+    if (state.dateFilter != OrdersDateFilter.date || selectedDate == null) {
+      return 'Select date';
+    }
+    return _formatDate(selectedDate);
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }
 
@@ -139,6 +202,7 @@ class _DateFilterChip extends StatelessWidget {
   const _DateFilterChip({
     required this.label,
     required this.textStyle,
+    required this.onTap,
     this.selected = false,
     this.icon,
     this.trailingIcon,
@@ -146,6 +210,7 @@ class _DateFilterChip extends StatelessWidget {
 
   final String label;
   final TextStyle? textStyle;
+  final VoidCallback onTap;
   final bool selected;
   final IconData? icon;
   final IconData? trailingIcon;
@@ -153,48 +218,55 @@ class _DateFilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = selected ? Colors.white : Colors.black;
-    return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 20, color: foreground.withValues(alpha: 0.75)),
-            const SizedBox(width: 12),
-          ],
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textStyle?.copyWith(
-                color: foreground,
-                fontWeight: FontWeight.w800,
+        child: Ink(
+          height: 45,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
-            ),
+            ],
           ),
-          if (trailingIcon != null) ...[
-            const SizedBox(width: 8),
-            Icon(
-              trailingIcon,
-              size: 20,
-              color: foreground.withValues(alpha: 0.8),
-            ),
-          ],
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: foreground.withValues(alpha: 0.75)),
+                const SizedBox(width: 12),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStyle?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (trailingIcon != null) ...[
+                const SizedBox(width: 8),
+                Icon(
+                  trailingIcon,
+                  size: 20,
+                  color: foreground.withValues(alpha: 0.8),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -220,6 +292,7 @@ class _HistoryOrderCard extends StatelessWidget {
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
@@ -227,6 +300,7 @@ class _HistoryOrderCard extends StatelessWidget {
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: AppTheme.text,
                     fontWeight: FontWeight.w600,
+                    fontSize: 15,
                   ),
                 ),
               ),
@@ -237,19 +311,13 @@ class _HistoryOrderCard extends StatelessWidget {
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: AppTheme.text,
                     fontWeight: FontWeight.w700,
+                    fontSize: 13,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 36,
-                height: 36,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  tooltip: 'Order options',
-                  onPressed: () => _showOrderOptions(context),
-                  icon: const Icon(Icons.more_vert_rounded, size: 28),
-                ),
+              IconButton(
+                onPressed: () => _showOrderOptions(context),
+                icon: const Icon(Icons.more_vert_rounded, size: 20),
               ),
             ],
           ),
@@ -261,7 +329,7 @@ class _HistoryOrderCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Divider(color: Color(0xFFECECEC), height: 28),
+          const Divider(color: Color(0xFFECECEC)),
           const SizedBox(height: 4),
           Row(
             children: [
@@ -391,6 +459,7 @@ class _HistoryLineItem extends StatelessWidget {
             style: theme.textTheme.titleMedium?.copyWith(
               color: AppTheme.text,
               fontWeight: FontWeight.w700,
+              fontSize: 14,
             ),
           ),
         ),
@@ -427,8 +496,8 @@ class _VegMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isVeg ? const Color(0xFF137333) : const Color(0xFFC62828);
     return Container(
-      width: 18,
-      height: 18,
+      width: 15,
+      height: 15,
       alignment: Alignment.center,
       decoration: BoxDecoration(border: Border.all(color: color, width: 1.6)),
       child: Container(
@@ -449,7 +518,7 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 38,
+      height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       alignment: Alignment.center,
       decoration: BoxDecoration(
@@ -460,8 +529,9 @@ class _StatusPill extends StatelessWidget {
         label,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
           color: color,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w700,
           letterSpacing: 0.8,
+          fontSize: 14,
         ),
       ),
     );
