@@ -26,9 +26,21 @@ class _MenuPageState extends State<MenuPage> {
   @override
   void initState() {
     super.initState();
+    _applyInitialOrderSelection();
+  }
+
+  @override
+  void didUpdateWidget(covariant MenuPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialOrderType != widget.initialOrderType ||
+        oldWidget.initialTableNumber != widget.initialTableNumber) {
+      _applyInitialOrderSelection();
+    }
+  }
+
+  void _applyInitialOrderSelection() {
     final initialOrderType = widget.initialOrderType;
     if (initialOrderType == null) return;
-
     final ordersBloc = context.read<OrdersBloc>()
       ..add(OrderTypeStarted(initialOrderType));
     final tableNumber = widget.initialTableNumber;
@@ -51,10 +63,7 @@ class _MenuPageState extends State<MenuPage> {
         backgroundColor: Colors.white,
         appBar: AppBar(
           backgroundColor: Colors.white,
-          leading: IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back, size: 22),
-          ),
+
           title: const Text(
             'Main Menu',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),

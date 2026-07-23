@@ -129,6 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         AppPhoneField(
                           controller: phoneController,
                           hintText: "Enter phone number",
+                          minHeight: 64,
                         ),
 
                         const SizedBox(height: 14),

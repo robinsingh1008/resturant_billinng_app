@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:resturent_billinng_app/core/assets/icon_assets.dart';
 import 'package:resturent_billinng_app/core/constants/app_colors.dart';
+import 'package:resturent_billinng_app/core/models/restaurant_models.dart';
 import 'package:resturent_billinng_app/features/home/presentation/pages/home_page.dart';
 import 'package:resturent_billinng_app/features/menu/presentation/pages/menu_page.dart';
 import 'package:resturent_billinng_app/features/orders/presentation/pages/orders_page.dart';
@@ -17,12 +18,17 @@ class BottomTab extends StatefulWidget {
 
 class _BottomTabState extends State<BottomTab> {
   late int _selectedIndex;
+  OrderType? _menuInitialOrderType;
+  int _menuOpenNonce = 0;
 
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomePage(),
-    MenuPage(),
-    OrdersPage(),
-    ReportsPage(),
+  List<Widget> get _widgetOptions => <Widget>[
+    HomePage(onOpenMenu: _openMenuTab),
+    MenuPage(
+      key: ValueKey('menu-${_menuInitialOrderType?.name}-$_menuOpenNonce'),
+      initialOrderType: _menuInitialOrderType,
+    ),
+    const OrdersPage(),
+    const ReportsPage(),
   ];
 
   @override
@@ -47,6 +53,14 @@ class _BottomTabState extends State<BottomTab> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = _safeIndex(index);
+    });
+  }
+
+  void _openMenuTab(OrderType orderType) {
+    setState(() {
+      _menuInitialOrderType = orderType;
+      _menuOpenNonce++;
+      _selectedIndex = 1;
     });
   }
 

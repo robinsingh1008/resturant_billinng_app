@@ -3,12 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:resturent_billinng_app/core/models/restaurant_models.dart';
 import 'package:resturent_billinng_app/features/home/presentation/bloc/home_bloc.dart';
 import 'package:resturent_billinng_app/features/home/presentation/pages/dine_in_page.dart';
-import 'package:resturent_billinng_app/features/menu/presentation/pages/menu_page.dart';
-import 'package:resturent_billinng_app/features/orders/presentation/bloc/orders_bloc.dart';
-import 'package:resturent_billinng_app/features/orders/presentation/pages/orders_page.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.onOpenMenu});
+
+  final ValueChanged<OrderType>? onOpenMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +46,7 @@ class HomePage extends StatelessWidget {
                       backgroundImage: 'assets/images/billing.png',
                       color: const Color(0xFFE8232E),
                       tint: const Color(0xFFFFF1F2),
-                      onTap: () =>
-                          _openOrderMenu(context, orderType: OrderType.parcel),
+                      onTap: () => onOpenMenu?.call(OrderType.parcel),
                     ),
                     const SizedBox(height: 16),
                     _ActionCard(
@@ -58,10 +56,7 @@ class HomePage extends StatelessWidget {
                       backgroundImage: 'assets/images/map.png',
                       color: const Color(0xFF4C8F37),
                       tint: const Color(0xFFF0FDF4),
-                      onTap: () => _openOrderMenu(
-                        context,
-                        orderType: OrderType.delivery,
-                      ),
+                      onTap: () => onOpenMenu?.call(OrderType.delivery),
                     ),
                     const SizedBox(height: 18),
                     _SummaryCard(state: state),
@@ -72,15 +67,6 @@ class HomePage extends StatelessWidget {
             ],
           );
         },
-      ),
-    );
-  }
-
-  void _openOrderMenu(BuildContext context, {required OrderType orderType}) {
-    context.read<OrdersBloc>().add(OrderTypeStarted(orderType));
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MenuPage(initialOrderType: orderType),
       ),
     );
   }

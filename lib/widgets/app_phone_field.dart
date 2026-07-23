@@ -19,6 +19,8 @@ class AppPhoneField extends StatelessWidget {
   final Color? dropdownIconColor;
   final Color? fillColor;
   final double borderRadius;
+  final double? minHeight;
+  final EdgeInsetsGeometry? contentPadding;
   final String? Function(PhoneNumber?)? validator;
   final AutovalidateMode autovalidateMode;
   final bool readOnly;
@@ -40,6 +42,8 @@ class AppPhoneField extends StatelessWidget {
     this.dropdownIconColor,
     this.fillColor,
     this.borderRadius = 12,
+    this.minHeight = 58,
+    this.contentPadding,
     this.validator,
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
     this.readOnly = false,
@@ -109,6 +113,11 @@ class AppPhoneField extends StatelessWidget {
 
         filled: true,
         fillColor: fillColor ?? inputTheme.fillColor,
+        constraints: minHeight == null
+            ? inputTheme.constraints
+            : (inputTheme.constraints ?? const BoxConstraints()).copyWith(
+                minHeight: minHeight,
+              ),
         hintStyle: theme.textTheme.bodySmall?.copyWith(
           color: theme.textTheme.bodyMedium?.color,
         ),
@@ -122,8 +131,9 @@ class AppPhoneField extends StatelessWidget {
         errorBorder: borderFromTheme(inputTheme.errorBorder),
         disabledBorder: borderFromTheme(inputTheme.disabledBorder),
         contentPadding:
+            contentPadding ??
             inputTheme.contentPadding ??
-            const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         labelStyle: theme.textTheme.bodyMedium?.copyWith(
           color: labelColor ?? theme.textTheme.bodyMedium?.color,
         ),
